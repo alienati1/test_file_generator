@@ -1,0 +1,6 @@
+{
+  "name": "测试材料生成器",
+  "description": "融资类产品日常测试专用的小工具，支持一键或自定义生成满足官方编码规则、高仿真可用于OCR识别的中国大陆企业营业执照、身份证、香港企业商业登记证、港澳居民来往内地通行证等测试材料，支持特定位置指定字符生成与随机编码生成。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
