@@ -59,6 +59,46 @@ import {
 // Define local persistence keys if we want to save previous configurations
 type ActiveTab = "one_click" | "custom_design" | "code_generator";
 
+const DOC_EXPORT_PREFIX_MAP: Record<DocType, string> = {
+  mainland_business_license: "BL",
+  mainland_id_front: "MLF",
+  mainland_id_back: "MLB",
+  hk_business_registration: "BR",
+  hk_home_return_permit: "BHF",
+  hk_home_return_permit_back: "BHB"
+};
+
+function sanitizeFileNamePart(raw?: string, fallback = "未命名"): string {
+  const cleaned = (raw || "")
+    .replace(/[\\/:*?"<>|\r\n]+/g, "_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\.+|\.+$/g, "");
+  return cleaned || fallback;
+}
+
+function getDocumentExportFilename(docType: DocType, fields: any): string {
+  const prefix = DOC_EXPORT_PREFIX_MAP[docType] || "DOC";
+  let entityName = "";
+
+  switch (docType) {
+    case "mainland_business_license":
+    case "mainland_id_front":
+    case "mainland_id_back":
+      entityName = fields?.name || "";
+      break;
+    case "hk_business_registration":
+      entityName = fields?.nameChinese || fields?.nameEnglish || "";
+      break;
+    case "hk_home_return_permit":
+    case "hk_home_return_permit_back":
+      entityName = fields?.nameChinese || fields?.hkNameTraditional || fields?.nameEnglish || "";
+      break;
+  }
+
+  return `${prefix}-${sanitizeFileNamePart(entityName)}`;
+}
+
 export default function GeneratorDashboard() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("one_click");
 
@@ -189,15 +229,17 @@ export default function GeneratorDashboard() {
       case "mainland_id_front":
         mockData = generateMockResidentIdCard();
         break;
-      case "mainland_id_back":
-        // Needs a corresponding ID card template fields
+      case "mainland_id_back": {
+        // Needs a corresponding ID card template fields (+ holder name for MLB-{name}.png naming)
         const temp = generateMockResidentIdCard();
         mockData = {
+          name: temp.name,
           authority: temp.authority,
           validityStart: temp.validityStart,
           validityEnd: temp.validityEnd
         };
         break;
+      }
       case "hk_business_registration":
         mockData = generateMockHKBR();
         break;
@@ -276,9 +318,10 @@ export default function GeneratorDashboard() {
       alert("无法定位证件预览，请先确认预览是否加载。");
       return;
     }
+    const baseName = filename.replace(/\.png$/i, "");
     const dataURL = canvas.toDataURL("image/png");
     const link = document.createElement("a");
-    link.download = `${filename}.png`;
+    link.download = `${baseName}.png`;
     link.href = dataURL;
     link.click();
   };
@@ -288,9 +331,18 @@ export default function GeneratorDashboard() {
     try {
       const zip = new JSZip();
       const items = [
-        { id: "ocr-canvas-mainland_business_license", name: "01_中国大陆企业营业执照" },
-        { id: "ocr-canvas-mainland_id_front", name: "02_法人身份证_个人信息面" },
-        { id: "ocr-canvas-mainland_id_back", name: "03_法人身份证_国徽面" }
+        {
+          id: "ocr-canvas-mainland_business_license",
+          name: getDocumentExportFilename("mainland_business_license", oneClickLicense)
+        },
+        {
+          id: "ocr-canvas-mainland_id_front",
+          name: getDocumentExportFilename("mainland_id_front", oneClickIdFront)
+        },
+        {
+          id: "ocr-canvas-mainland_id_back",
+          name: getDocumentExportFilename("mainland_id_back", oneClickIdBack)
+        }
       ];
 
       let count = 0;
@@ -311,10 +363,13 @@ export default function GeneratorDashboard() {
       }
 
       const content = await zip.generateAsync({ type: "blob" });
+      const companyLabel = sanitizeFileNamePart(oneClickLicense?.name, "基础测试材料");
+      const zipUrl = URL.createObjectURL(content);
       const link = document.createElement("a");
-      link.download = "一键基础材料全部打包.zip";
-      link.href = URL.createObjectURL(content);
+      link.download = `${companyLabel}-基础测试材料.zip`;
+      link.href = zipUrl;
       link.click();
+      setTimeout(() => URL.revokeObjectURL(zipUrl), 1000);
     } catch (err) {
       console.error("打包下载失败:", err);
       alert("打包下载失败，请重试。");
@@ -685,18 +740,36 @@ export default function GeneratorDashboard() {
                   </div>
 
                   {/* Actions under preview */}
-                  <div className="w-full flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
-                    <span className="text-xs text-slate-400">
-                      分辨率：1200x1600 (高解度 OCR 识别版)
-                    </span>
+                  <div className="w-full flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 pt-4 border-t border-slate-100 gap-2">
+                    <div className="space-y-0.5">
+                      <span className="text-xs text-slate-400 block">
+                        分辨率：{getCanvasDimensions(oneClickActiveDoc).width}x{getCanvasDimensions(oneClickActiveDoc).height} (高解度 OCR 识别版)
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono block">
+                        导出文件名：{getDocumentExportFilename(
+                          oneClickActiveDoc,
+                          oneClickActiveDoc === "mainland_business_license"
+                            ? oneClickLicense
+                            : oneClickActiveDoc === "mainland_id_front"
+                            ? oneClickIdFront
+                            : oneClickIdBack
+                        )}.png
+                      </span>
+                    </div>
                     <button
                       onClick={() => {
-                        let fName = "营业执照";
-                        if (oneClickActiveDoc === "mainland_id_front") fName = "身份证面";
-                        if (oneClickActiveDoc === "mainland_id_back") fName = "身份证国徽";
-                        downloadCanvasAsImage(`ocr-canvas-${oneClickActiveDoc}`, `oneclick_${fName}`);
+                        const activeFields =
+                          oneClickActiveDoc === "mainland_business_license"
+                            ? oneClickLicense
+                            : oneClickActiveDoc === "mainland_id_front"
+                            ? oneClickIdFront
+                            : oneClickIdBack;
+                        downloadCanvasAsImage(
+                          `ocr-canvas-${oneClickActiveDoc}`,
+                          getDocumentExportFilename(oneClickActiveDoc, activeFields)
+                        );
                       }}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 shrink-0"
                     >
                       <Download className="w-3.5 h-3.5" />
                       下载当前单张 PNG
@@ -781,11 +854,15 @@ export default function GeneratorDashboard() {
                   </h3>
 
                   <div className="space-y-3.5">
-                    {Object.keys(customFields).map((fieldKey) => {
+                    {Object.keys(customFields)
+                      .filter((fieldKey) => fieldKey !== "_meta")
+                      .map((fieldKey) => {
                       // Get human label mapping
                       let label = fieldKey;
                       if (fieldKey === "uscc") label = "统一社会信用代码";
-                      else if (fieldKey === "name") label = "名称/姓名";
+                      else if (fieldKey === "name") {
+                        label = customDocType === "mainland_id_back" ? "主体姓名 (用于 MLB 导出命名)" : "名称/姓名";
+                      }
                       else if (fieldKey === "type") label = "类型";
                       else if (fieldKey === "legalRep") label = "法定代表人";
                       else if (fieldKey === "registeredCapital") label = "注册资本";
@@ -1061,6 +1138,9 @@ export default function GeneratorDashboard() {
                         <Info className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                         <span>分辨率：{getCanvasDimensions(customDocType).width}x{getCanvasDimensions(customDocType).height} px (PNG 32位无损)</span>
                       </p>
+                      <p className="text-[11px] text-slate-500 font-mono">
+                        导出文件名：{getDocumentExportFilename(customDocType, customFields)}.png
+                      </p>
                       {overlays.length > 0 && (
                         <p className="text-[10px] text-slate-500">
                           * 拖拽提示：在预览图上直接点击文字，可出现红色选框进行位置拖拽微调。
@@ -1070,13 +1150,10 @@ export default function GeneratorDashboard() {
                     
                     <button
                       onClick={() => {
-                        let label = "证件";
-                        if (customDocType === "mainland_business_license") label = "营业执照";
-                        else if (customDocType.startsWith("mainland_id")) label = "大陆身份证";
-                        else if (customDocType === "hk_business_registration") label = "香港商业登记证";
-                        else if (customDocType === "hk_home_return_permit") label = "回乡证正面";
-                        else if (customDocType === "hk_home_return_permit_back") label = "回乡证背面";
-                        downloadCanvasAsImage(`ocr-canvas-${customDocType}`, `custom_${label}`);
+                        downloadCanvasAsImage(
+                          `ocr-canvas-${customDocType}`,
+                          getDocumentExportFilename(customDocType, customFields)
+                        );
                       }}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded text-xs flex items-center gap-2 shrink-0 shadow-md transition-all active:scale-95"
                     >
