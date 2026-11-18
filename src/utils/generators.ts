@@ -619,10 +619,10 @@ export const HK_ENGLISH_MALE_NAMES = ["DAVID", "ALEX", "JOHN", "DANIEL", "PETER"
 export const HK_ENGLISH_FEMALE_NAMES = ["MARY", "CHERRY", "GRACE", "AMY", "WENDY", "SARAH", "HELEN", "FIONA", "KELLY", "IVY"];
 export const HK_CHINESE_NAMES = ["陈大文", "黄志强", "李嘉欣", "张学友", "刘德华", "林国雄", "郑秀文", "吴志明", "余诗曼", "梁朝伟"];
 
-export const HK_COMPANY_PREFIX = ["EASTERN", "GOLDEN", "VIBRANT", "HARBOUR", "PACIFIC", "GLOBAL", "APEX", "DRAGON", "SINO", "METRO"];
-export const HK_COMPANY_MID = ["TRADING", "TECHNOLOGY", "INVESTMENT", "LOGISTICS", "ENTERPRISE", "INDUSTRIES", "HOLDINGS", "DEVELOPMENT"];
-export const HK_CHINESE_COMPANY_PREFIX = ["东方", "金河", "万隆", "维港", "太平洋", "环球", "恒峰", "龙腾", "华夏", "大都会"];
-export const HK_CHINESE_COMPANY_MID = ["贸易", "科技", "投资", "物流", "企业", "实业", "集团", "发展"];
+export const HK_COMPANY_PREFIX = ["EASTERN", "GOLDEN", "VIBRANT", "HARBOUR", "PACIFIC", "GLOBAL", "APEX", "DRAGON", "SINO", "METRO", "SOARTALENT", "ORIENT", "BRIGHT", "APEXWELL", "GRAND", "ZENITH"];
+export const HK_COMPANY_MID = ["TRADING", "TECHNOLOGY", "INVESTMENT", "LOGISTICS", "ENTERPRISE", "INDUSTRIES", "HOLDINGS", "DEVELOPMENT", "INTERNATIONAL TRADING", "COMMERCE"];
+export const HK_CHINESE_COMPANY_PREFIX = ["東方", "金河", "萬隆", "維港", "太平洋", "環球", "恒峰", "龍騰", "華夏", "大都會", "才捷", "東亞", "明輝", "匯豐達", "宏大", "盛世"];
+export const HK_CHINESE_COMPANY_MID = ["貿易", "科技", "投資", "物流", "企業", "實業", "集團", "發展", "國際貿易", "商貿"];
 
 export const HK_STREETS = [
   "ROOM 701 UNIT 108B 7/F TOWER B\nNEW MANDARIN PLAZA 14 SCIENCE\nMUSEUM ROAD TSIM SHA TSUI\nKL",
@@ -890,12 +890,15 @@ export interface HKBusinessRegistrationFields {
 }
 
 export function generateMockHKBR(): HKBusinessRegistrationFields {
-  const prefixEng = getRandomItem(HK_COMPANY_PREFIX);
-  const midEng = getRandomItem(HK_COMPANY_MID);
-  const prefixChi = getRandomItem(HK_CHINESE_COMPANY_PREFIX);
-  const midChi = getRandomItem(HK_CHINESE_COMPANY_MID);
+  const prefixIdx = getRandomInt(0, HK_COMPANY_PREFIX.length - 1);
+  const midIdx = getRandomInt(0, HK_COMPANY_MID.length - 1);
+  const prefixEng = HK_COMPANY_PREFIX[prefixIdx];
+  const midEng = HK_COMPANY_MID[midIdx];
+  const prefixChi = HK_CHINESE_COMPANY_PREFIX[prefixIdx] || getRandomItem(HK_CHINESE_COMPANY_PREFIX);
+  const midChi = HK_CHINESE_COMPANY_MID[midIdx] || getRandomItem(HK_CHINESE_COMPANY_MID);
 
-  const nameEnglish = `${prefixEng} ${midEng} LIMITED`;
+  const engSuffix = getRandomItem(["LIMITED", "CO., LIMITED"]);
+  const nameEnglish = `${prefixEng} ${midEng} ${engSuffix}`;
   const nameChinese = `${prefixChi}${midChi}有限公司`;
 
   const nature = getRandomItem([
@@ -903,17 +906,17 @@ export function generateMockHKBR(): HKBusinessRegistrationFields {
     { eng: "SOFTWARE DEVELOPMENT, IT CONSULTING & SERVICES", chi: "計算機軟硬件研發、技術諮詢、技術服務" },
     { eng: "INVESTMENT HOLDINGS & BUSINESS MANAGEMENT SERVICES", chi: "投資控股及企業管理服務" },
     { eng: "IMPORT & EXPORT, SUPPLY CHAIN SOLUTIONS", chi: "進出口貿易、物流行業及供應鏈解決方案" },
-    { eng: "CATERING & RESTAURANT OPERATIONS", chi: "餐飲服務、餐館經營及食品批發零售" }
+    { eng: "DAILY NECESSITIES, HOME & OUTDOOR RETAIL", chi: "日用品，家居，戶外零售" }
   ]);
 
-  const year = getRandomInt(2023, 2025);
+  const year = getRandomInt(2024, 2026);
   const month = getRandomInt(1, 12);
   const day = getRandomInt(1, 28);
 
   const commencementDate = `${padZero(day)}/${padZero(month)}/${year}`;
   const expiryDate = `${padZero(day)}/${padZero(month)}/${year + 1}`;
 
-  const fee = getRandomItem(["2,000.00", "150.00", "0.00"]);
+  const fee = getRandomItem(["2,200.00", "2,000.00", "150.00"]);
   const levy = "150.00";
   const total = String((parseFloat(fee.replace(",", "")) + parseFloat(levy)).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
@@ -925,7 +928,7 @@ export function generateMockHKBR(): HKBusinessRegistrationFields {
     natureEnglish: nature.eng,
     natureChinese: nature.chi,
     statusEnglish: "BODY CORPORATE",
-    statusChinese: "法人团体",
+    statusChinese: "法人團體",
     commencementDate,
     expiryDate,
     fee: `HKD ${fee}`,

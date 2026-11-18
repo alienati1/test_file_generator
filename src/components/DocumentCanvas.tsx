@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { 
   BusinessLicenseFields, 
   ResidentIdCardFields, 
@@ -73,8 +73,17 @@ export default function DocumentCanvas({
   onUpdateOverlayPosition,
 }: DocumentCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
 
   const { width, height, aspect } = getCanvasDimensions(docType);
+
+  useEffect(() => {
+    if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        setFontsLoaded(true);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -104,7 +113,7 @@ export default function DocumentCanvas({
     }
 
     ctx.restore();
-  }, [docType, fields, overlays, backgroundStyle, selectedOverlayId, width, height]);
+  }, [docType, fields, overlays, backgroundStyle, selectedOverlayId, width, height, fontsLoaded]);
 
   // Handle click on canvas for dragging or selecting overlays
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -766,26 +775,44 @@ export default function DocumentCanvas({
     // 6. Header Titles (Chinese & English)
     ctx.fillStyle = "#222222";
     ctx.textAlign = "left";
-    ctx.font = "bold 14px SimHei, 'Microsoft YaHei', sans-serif";
-    ctx.fillText("正    本", 100, 138);
-    ctx.font = "bold 12px Arial, sans-serif";
-    ctx.fillText("ORIGINAL", 100, 155);
+    ctx.font = "bold 14px 'Noto Serif TC', SimHei, 'Microsoft YaHei', sans-serif";
+    ctx.fillText("正    本", 95, 138);
+    ctx.font = "italic bold 12px Arial, sans-serif";
+    ctx.fillText("ORIGINAL", 95, 155);
 
+    // Overprinted redacted placeholder matching real IRD form (masked so OCR ignores it)
+    ctx.save();
     ctx.font = "12px 'Courier New', monospace";
-    ctx.fillStyle = "#444444";
-    ctx.fillText("XKXXXXXXX", 100, 180);
-    ctx.fillText("XXKXXXXXX", 100, 196);
+    ctx.fillStyle = "#666666";
+    ctx.fillText("XXXXXXXXX", 95, 180);
+    ctx.fillText("XXXXXXXXX", 95, 196);
+    ctx.strokeStyle = "#333333";
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 9; i++) {
+      const rx = 96 + i * 7.2;
+      ctx.beginPath();
+      ctx.moveTo(rx, 171);
+      ctx.lineTo(rx + 6, 181);
+      ctx.moveTo(rx + 6, 171);
+      ctx.lineTo(rx, 181);
+      ctx.moveTo(rx, 187);
+      ctx.lineTo(rx + 6, 197);
+      ctx.moveTo(rx + 6, 187);
+      ctx.lineTo(rx, 197);
+      ctx.stroke();
+    }
+    ctx.restore();
 
     // Center header titles
     ctx.textAlign = "center";
     ctx.fillStyle = "#111111";
-    ctx.font = "bold 15px SimSun, SimHei, sans-serif";
+    ctx.font = "bold 15px 'Noto Serif TC', SimSun, serif";
     ctx.fillText("表格 2      FORM 2", (60 + 1100) / 2, 125);
-    ctx.font = "bold 17px SimSun, serif";
+    ctx.font = "bold 17px 'Noto Serif TC', SimSun, serif";
     ctx.fillText("《商業登記條例》(第 310 章)", (60 + 1100) / 2, 146);
     ctx.font = "bold 14px Arial, sans-serif";
     ctx.fillText("BUSINESS REGISTRATION ORDINANCE (Chapter 310)", (60 + 1100) / 2, 166);
-    ctx.font = "bold 15px SimSun, serif";
+    ctx.font = "bold 15px 'Noto Serif TC', SimSun, serif";
     ctx.fillText("《商業登記規例》", (60 + 1100) / 2, 186);
     ctx.font = "bold 12px Arial, sans-serif";
     ctx.fillText("BUSINESS REGISTRATION REGULATIONS", (60 + 1100) / 2, 204);
@@ -793,7 +820,7 @@ export default function DocumentCanvas({
     // Regulation 5 label top-right
     ctx.textAlign = "right";
     ctx.fillStyle = "#222222";
-    ctx.font = "bold 14px SimSun, sans-serif";
+    ctx.font = "bold 14px 'Noto Serif TC', SimSun, sans-serif";
     ctx.fillText("[第 5 條]", 1100, 138);
     ctx.font = "bold 12px Arial, sans-serif";
     ctx.fillText("[regulation 5]", 1100, 155);
@@ -801,69 +828,95 @@ export default function DocumentCanvas({
     // Business Registration Certificate title centered
     ctx.textAlign = "center";
     ctx.fillStyle = "#000000";
-    ctx.font = "bold 20px SimSun, SimHei, sans-serif";
-    ctx.fillText("商業登記證     Business Registration Certificate", (60 + 1100) / 2, 238);
+    ctx.font = "bold 19px 'Noto Serif TC', SimSun, sans-serif";
+    ctx.fillText("商業登記證     Business Registration Certificate", (60 + 1100) / 2, 234);
 
-    // 7. Wide Barcode
-    const barcodeX = 200;
-    const barcodeY = 255;
-    const barcodeW = 800;
-    const barcodeH = 50;
-    drawBarcode(ctx, barcodeX, barcodeY, barcodeW, barcodeH, d.brNumber || "");
+    // 7. Wide Barcode (No text underneath, aligned directly with value column like authentic HK BR)
+    const labelX = 95;
+    const valueX = 275;
+    const maxValWidth = 805;
+
+    const barcodeX = valueX;
+    const barcodeY = 250;
+    const barcodeW = 730;
+    const barcodeH = 44;
+    drawBarcode(ctx, barcodeX, barcodeY, barcodeW, barcodeH, d.brNumber || "", false);
 
     // 8. Key-Value Fields Grid layout
-    const labelX = 100;
-    const valueX = 350;
-    const fieldLabelFontChi = "bold 15px SimSun, sans-serif";
-    const fieldLabelFontEng = "bold 13px Arial, sans-serif";
-    const fieldValueFontChi = "bold 18px SimSun, SimHei, sans-serif";
-    const fieldValueFontEng = "bold 18px Arial, sans-serif";
+    const fieldLabelFontChi = "500 14px 'Noto Serif TC', SimSun, sans-serif";
+    const fieldLabelFontEng = "500 12px Arial, sans-serif";
     const labelColor = "#333333";
 
+    const chiNameFont26 = "500 26px 'Noto Serif TC', 'Noto Serif SC', 'PMingLiU', 'MingLiU', 'Songti SC', 'SimSun', 'Microsoft YaHei', serif";
+    const chiNameFont22 = "500 22px 'Noto Serif TC', 'Noto Serif SC', 'PMingLiU', 'MingLiU', 'Songti SC', 'SimSun', 'Microsoft YaHei', serif";
+    const chiValueFont = "500 21px 'Noto Serif TC', 'Noto Serif SC', 'PMingLiU', 'MingLiU', 'Songti SC', 'SimSun', 'Microsoft YaHei', serif";
+    const engValueFont = "500 18px 'JetBrains Mono', 'Consolas', 'Liberation Mono', 'Courier New', monospace";
+
     // Row 1: Name of Business / Corporation
+    const nameRowY = 338;
     ctx.textAlign = "left";
     ctx.fillStyle = labelColor;
     ctx.font = fieldLabelFontChi;
-    ctx.fillText("業務 / 法團所用名稱", labelX, 362);
+    ctx.fillText("業務 / 法團所用名稱", labelX, nameRowY);
     ctx.font = fieldLabelFontEng;
-    ctx.fillText("Name of Business/", labelX, 378);
-    ctx.fillText("Corporation", labelX, 393);
+    ctx.fillText("Name of Business/", labelX, nameRowY + 16);
+    ctx.fillText("Corporation", labelX, nameRowY + 31);
 
     ctx.fillStyle = "#111111";
-    ctx.font = fieldValueFontChi;
-    ctx.fillText(d.nameChinese || "", valueX, 365);
-    ctx.font = fieldValueFontEng;
-    ctx.fillText(d.nameEnglish || "", valueX, 390);
+    const chiName = (d.nameChinese || "").trim();
+    ctx.font = chiNameFont26;
+    if (ctx.measureText(chiName).width > maxValWidth) {
+      ctx.font = chiNameFont22;
+    }
+    ctx.fillText(chiName, valueX, nameRowY + 4);
+
+    // English Name: wide-spaced regular-weight monospace with clean word wrapping
+    ctx.font = engValueFont;
+    const engName = (d.nameEnglish || "").trim().toUpperCase();
+    const engNameLines = wrapEnglishWords(ctx, engName, valueX, nameRowY + 38, maxValWidth, 25);
+    const extraNameOffset = Math.max(0, engNameLines - 1) * 24;
 
     // Row 2: Business / Branch Name (Typically printed as stars)
+    const branchRowY = 426 + extraNameOffset;
     ctx.fillStyle = labelColor;
     ctx.font = fieldLabelFontChi;
-    ctx.fillText("業務 / 分行名稱", labelX, 442);
+    ctx.fillText("業務 / 分行名稱", labelX, branchRowY);
     ctx.font = fieldLabelFontEng;
-    ctx.fillText("Business/", labelX, 458);
-    ctx.fillText("Branch Name", labelX, 473);
+    ctx.fillText("Business/", labelX, branchRowY + 16);
+    ctx.fillText("Branch Name", labelX, branchRowY + 31);
 
     ctx.fillStyle = "#111111";
-    ctx.font = "bold 18px 'Courier New', monospace";
-    ctx.fillText("**************************************************", valueX, 445);
-    ctx.fillText("**************************************************", valueX, 470);
+    ctx.font = "500 18px 'JetBrains Mono', 'Courier New', monospace";
+    ctx.fillText("********************************************", valueX, branchRowY + 3);
+    ctx.fillText("********************************************", valueX, branchRowY + 26);
 
     // Row 3: Address
+    const addrRowY = 498 + extraNameOffset;
     ctx.fillStyle = labelColor;
     ctx.font = fieldLabelFontChi;
-    ctx.fillText("地址", labelX, 520);
+    ctx.fillText("地    址", labelX, addrRowY);
     ctx.font = fieldLabelFontEng;
-    ctx.fillText("Address", labelX, 536);
+    ctx.fillText("Address", labelX, addrRowY + 16);
 
     ctx.fillStyle = "#111111";
-    ctx.font = "bold 18px Arial, sans-serif";
-    const addrLines = (d.address || "").split("\n");
-    addrLines.forEach((line, idx) => {
-      ctx.fillText(line.toUpperCase(), valueX, 520 + idx * 24);
+    ctx.font = engValueFont;
+    const rawAddrLines = (d.address || "").split("\n").filter((l) => l.trim().length > 0);
+    let addrLineCursor = 0;
+    rawAddrLines.forEach((line) => {
+      const wrappedCount = wrapEnglishWords(
+        ctx,
+        line.trim().toUpperCase(),
+        valueX,
+        addrRowY + 2 + addrLineCursor * 25,
+        maxValWidth,
+        25
+      );
+      addrLineCursor += wrappedCount;
     });
+    const extraAddrOffset = Math.max(0, addrLineCursor - 4) * 24;
 
     // Row 4: Nature of Business
-    const natureY = 640;
+    const natureY = Math.min(665, 626 + extraNameOffset + extraAddrOffset);
     ctx.fillStyle = labelColor;
     ctx.font = fieldLabelFontChi;
     ctx.fillText("業務性質", labelX, natureY);
@@ -871,13 +924,25 @@ export default function DocumentCanvas({
     ctx.fillText("Nature of Business", labelX, natureY + 16);
 
     ctx.fillStyle = "#111111";
-    ctx.font = fieldValueFontChi;
-    ctx.fillText(d.natureChinese || "", valueX, natureY + 3);
-    ctx.font = fieldValueFontEng;
-    ctx.fillText(d.natureEnglish || "", valueX, natureY + 26);
+    ctx.font = chiValueFont;
+    const natureChi = (d.natureChinese || "").trim();
+    if (ctx.measureText(natureChi).width > maxValWidth) {
+      ctx.font = "500 18px 'Noto Serif TC', 'Noto Serif SC', 'PMingLiU', 'SimSun', sans-serif";
+    }
+    ctx.fillText(natureChi, valueX, natureY + 3);
+    ctx.font = "500 16px 'JetBrains Mono', 'Consolas', 'Arial', monospace";
+    const natureEngLines = wrapEnglishWords(
+      ctx,
+      (d.natureEnglish || "").trim().toUpperCase(),
+      valueX,
+      natureY + 30,
+      maxValWidth,
+      22
+    );
+    const extraNatureOffset = Math.max(0, natureEngLines - 1) * 20;
 
     // Row 5: Legal Status
-    const statusY = 708;
+    const statusY = Math.min(732, natureY + 66 + extraNatureOffset);
     ctx.fillStyle = labelColor;
     ctx.font = fieldLabelFontChi;
     ctx.fillText("法律地位", labelX, statusY);
@@ -885,11 +950,11 @@ export default function DocumentCanvas({
     ctx.fillText("Status", labelX, statusY + 16);
 
     ctx.fillStyle = "#111111";
-    ctx.font = fieldValueFontEng;
+    ctx.font = engValueFont;
     ctx.fillText((d.statusEnglish || "BODY CORPORATE").toUpperCase(), valueX, statusY + 10);
 
     // Row 6: Dates, Certificate Number & Fee / Levy Grid
-    const gridY = 770;
+    const gridY = Math.max(775, statusY + 56);
     
     // Column 1: Commencement Date
     ctx.fillStyle = labelColor;
@@ -898,33 +963,33 @@ export default function DocumentCanvas({
     ctx.font = fieldLabelFontEng;
     ctx.fillText("Date of Commencement", labelX, gridY + 16);
     ctx.fillStyle = "#000000";
-    ctx.font = "bold 22px 'Courier New', monospace";
-    ctx.fillText(d.commencementDate || "", labelX, gridY + 45);
+    ctx.font = "500 22px 'JetBrains Mono', 'Courier New', monospace";
+    ctx.fillText(d.commencementDate || "", labelX, gridY + 46);
 
     // Column 2: Expiry Date
-    const expiryX = 320;
+    const expiryX = 310;
     ctx.fillStyle = labelColor;
     ctx.font = fieldLabelFontChi;
     ctx.fillText("屆滿日期", expiryX, gridY);
     ctx.font = fieldLabelFontEng;
     ctx.fillText("Date of Expiry", expiryX, gridY + 16);
     ctx.fillStyle = "#000000";
-    ctx.font = "bold 22px 'Courier New', monospace";
-    ctx.fillText(d.expiryDate || "", expiryX, gridY + 45);
+    ctx.font = "500 22px 'JetBrains Mono', 'Courier New', monospace";
+    ctx.fillText(d.expiryDate || "", expiryX, gridY + 46);
 
     // Column 3: Certificate No.
-    const certX = 540;
+    const certX = 525;
     ctx.fillStyle = labelColor;
     ctx.font = fieldLabelFontChi;
     ctx.fillText("登記證號碼", certX, gridY);
     ctx.font = fieldLabelFontEng;
     ctx.fillText("Certificate No.", certX, gridY + 16);
     ctx.fillStyle = "#000000";
-    ctx.font = "bold 22px 'Courier New', monospace";
-    ctx.fillText(d.brNumber || "", certX, gridY + 45);
+    ctx.font = "500 22px 'JetBrains Mono', 'Courier New', monospace";
+    ctx.fillText(d.brNumber || "", certX, gridY + 46);
 
     // Column 4: Fee and Levy
-    const feeX = 880;
+    const feeX = 875;
     ctx.fillStyle = labelColor;
     ctx.font = fieldLabelFontChi;
     ctx.fillText("登記費及徵費", feeX, gridY);
@@ -1548,28 +1613,35 @@ export default function DocumentCanvas({
     y: number,
     w: number,
     h: number,
-    text: string
+    text: string,
+    showText = true
   ) => {
     ctx.save();
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(x - 5, y - 5, w + 10, h + 25);
+    if (showText) {
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(x - 5, y - 5, w + 10, h + 25);
+    }
 
     ctx.fillStyle = "#000000";
-    let currX = x + 10;
-    const endX = x + w - 10;
+    let currX = x;
+    const endX = x + w;
 
-    // Generate random but patterned lines
+    // Generate deterministic-looking crisp barcode bars
     while (currX < endX) {
-      const thickness = Math.random() > 0.6 ? 4 : Math.random() > 0.3 ? 2 : 1;
-      ctx.fillRect(currX, y, thickness, h);
+      const thickness = Math.random() > 0.65 ? 4 : Math.random() > 0.35 ? 2 : 1;
+      if (currX + thickness <= endX) {
+        ctx.fillRect(currX, y, thickness, h);
+      }
       const gap = getRandomInt(1, 4);
       currX += thickness + gap;
     }
 
-    // Draw barcode text underneath
-    ctx.font = "11px Courier New, monospace";
-    ctx.textAlign = "center";
-    ctx.fillText(`*${text}*`, x + w / 2, y + h + 15);
+    if (showText) {
+      // Draw barcode text underneath
+      ctx.font = "11px Courier New, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`*${text}*`, x + w / 2, y + h + 15);
+    }
     ctx.restore();
   };
 
@@ -1793,6 +1865,39 @@ export default function DocumentCanvas({
   };
 
   // --- TEXT WRAPPING HELPER ---
+
+  const wrapEnglishWords = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number
+  ): number => {
+    if (!text) return 0;
+    const words = text.split(/\s+/);
+    let line = "";
+    let currY = y;
+    let lineCount = 0;
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = line ? `${line} ${word}` : word;
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        ctx.fillText(line, x, currY);
+        line = word;
+        currY += lineHeight;
+        lineCount++;
+      } else {
+        line = testLine;
+      }
+    }
+    if (line) {
+      ctx.fillText(line, x, currY);
+      lineCount++;
+    }
+    return lineCount;
+  };
 
   const wrapText = (
     ctx: CanvasRenderingContext2D,
