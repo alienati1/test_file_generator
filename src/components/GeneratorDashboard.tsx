@@ -934,7 +934,14 @@ export default function GeneratorDashboard() {
                                   let rVal = "";
                                   if (fieldKey === "uscc") rVal = generateSocialCreditCode();
                                   else if (fieldKey === "idNumber") rVal = generateCitizenIdNumber();
-                                  else if (fieldKey === "brNumber") rVal = generateHKBRNumber();
+                                  else if (fieldKey === "brNumber") {
+                                    const dateParts = String(customFields.commencementDate || "").split("/");
+                                    if (dateParts.length === 3 && dateParts[1].length === 2 && dateParts[2].length === 4) {
+                                      rVal = generateHKBRNumber(dateParts[1], dateParts[2].slice(-2));
+                                    } else {
+                                      rVal = generateHKBRNumber();
+                                    }
+                                  }
                                   setCustomFields((prev: any) => ({ ...prev, [fieldKey]: rVal }));
                                 }}
                                 className="text-indigo-600 hover:text-indigo-700 text-[10px] font-semibold"

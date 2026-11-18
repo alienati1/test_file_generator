@@ -633,14 +633,17 @@ export const HK_STREETS = [
   "BLOCK B, 9/F, VIBRANT INDUSTRIAL BUILDING\n24 YIP FAT STREET\nWONG CHUK HANG, HONG KONG"
 ];
 
-export function generateHKBRNumber(commencementMonth = "11", commencementYear = "25"): string {
+export function generateHKBRNumber(commencementMonth?: string, commencementYear?: string): string {
+  const now = new Date();
+  const month = commencementMonth || padZero(now.getMonth() + 1);
+  const year = commencementYear || String(now.getFullYear()).slice(-2);
   let brBody = "";
   for (let i = 0; i < 8; i++) {
     brBody += getRandomInt(0, 9);
   }
   const branch = "000";
   const checkDigit = getRandomInt(1, 9);
-  return `${brBody}-${branch}-${commencementMonth}-${commencementYear}-${checkDigit}`;
+  return `${brBody}-${branch}-${month}-${year}-${checkDigit}`;
 }
 
 export function generateHKCRNumber(): string {
@@ -909,19 +912,32 @@ export function generateMockHKBR(): HKBusinessRegistrationFields {
     { eng: "DAILY NECESSITIES, HOME & OUTDOOR RETAIL", chi: "日用品，家居，戶外零售" }
   ]);
 
-  const year = getRandomInt(2024, 2026);
-  const month = getRandomInt(1, 12);
-  const day = getRandomInt(1, 28);
+  // Commencement date in (T - 180 days, T], Expiry date = Commencement date + 1 year
+  const today = new Date();
+  const offsetDays = getRandomInt(0, 179);
+  const commencement = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offsetDays);
+  const commYear = commencement.getFullYear();
+  const commMonth = commencement.getMonth() + 1;
+  const commDay = commencement.getDate();
 
-  const commencementDate = `${padZero(day)}/${padZero(month)}/${year}`;
-  const expiryDate = `${padZero(day)}/${padZero(month)}/${year + 1}`;
+  const expiry = new Date(commYear + 1, commencement.getMonth(), commDay);
+  if (expiry.getMonth() !== commencement.getMonth()) {
+    // Handle Feb 29 on leap years -> Feb 28 of next year
+    expiry.setDate(0);
+  }
+  const expYear = expiry.getFullYear();
+  const expMonth = expiry.getMonth() + 1;
+  const expDay = expiry.getDate();
+
+  const commencementDate = `${padZero(commDay)}/${padZero(commMonth)}/${commYear}`;
+  const expiryDate = `${padZero(expDay)}/${padZero(expMonth)}/${expYear}`;
 
   const fee = getRandomItem(["2,200.00", "2,000.00", "150.00"]);
   const levy = "150.00";
   const total = String((parseFloat(fee.replace(",", "")) + parseFloat(levy)).toFixed(2)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
   return {
-    brNumber: generateHKBRNumber(padZero(month), String(year).substring(2)),
+    brNumber: generateHKBRNumber(padZero(commMonth), String(commYear).slice(-2)),
     nameEnglish,
     nameChinese,
     address: getRandomItem(HK_STREETS),
